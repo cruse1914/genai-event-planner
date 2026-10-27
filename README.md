@@ -1,1 +1,0 @@
-# genai-event-planner
