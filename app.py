@@ -8,11 +8,17 @@ from google.genai import types
 st.set_page_config(page_title="AI Event Planner", page_icon="🎉", layout="wide")
 
 st.title("🎉 GenAI Celebration & Event Planning Assistant")
-st.write("Plan your Weddings, Birthdays, and Community Events effortlessly with AI-powered budgets, timelines, and checklists.")
+st.write("Plan Weddings, Birthdays, and Community Events with AI-powered budgets, timelines, and checklists.")
 
-# Sidebar Configuration
+# Cached Client for Efficiency
+@st.cache_resource
+def get_gemini_client(api_key: str):
+    return genai.Client(api_key=api_key)
+
+# Sidebar Configuration & Security Handling
 st.sidebar.header("Configuration")
-api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
+env_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
+api_key = st.sidebar.text_input("Enter Gemini API Key", value=env_key, type="password")
 
 st.sidebar.markdown("---")
 st.sidebar.info("Challenge 5 Hack2skill Submission | Built with Gemini API")
@@ -30,30 +36,35 @@ with col2:
 
 special_requests = st.text_area("Special Notes / Preferences", value="Focus on outdoor seating and live music.")
 
+def validate_inputs(guests, bg):
+    return guests > 0 and bg > 0
+
 if st.button("🚀 Generate Complete Event Plan", type="primary"):
     if not api_key:
-        st.error("Please enter your Gemini API Key in the sidebar to proceed.")
+        st.error("Please enter your Gemini API Key in the sidebar or secrets.")
+    elif not validate_inputs(guest_count, budget):
+        st.error("Please enter valid positive numbers for guests and budget.")
     else:
         try:
             with st.spinner("GenAI is crafting your custom event plan..."):
-                client = genai.Client(api_key=api_key)
+                client = get_gemini_client(api_key)
                 
                 prompt = f"""
-                You are an expert event planner. Create a structured, highly detailed event plan for a {event_type}.
+                You are an expert event planner. Create a structured event plan for a {event_type}.
                 Guest Count: {guest_count}
                 Total Budget: {budget}
                 Theme: {theme}
                 Special Notes: {special_requests}
 
-                Provide a JSON response with the following keys:
+                Provide a JSON response with:
                 1. "budget_breakdown": Dictionary mapping categories (Venue, Catering, Decor, Entertainment, Logistics) to estimated costs (numeric).
-                2. "timeline": List of dictionary objects with "time" and "activity" for day-of schedules.
+                2. "timeline": List of objects with "time" and "activity".
                 3. "checklist": List of milestone tasks categorized by weeks leading up to the event.
                 4. "creative_ideas": List of 5 unique theme, food, or activity ideas.
                 """
                 
                 response = client.models.generate_content(
-                    model='gemini-3.8-flash',
+                    model='gemini-2.5-flash',
                     contents=prompt,
                     config=types.GenerateContentConfig(
                         response_mime_type="application/json"
@@ -61,8 +72,6 @@ if st.button("🚀 Generate Complete Event Plan", type="primary"):
                 )
                 
                 data = json.loads(response.text)
-                
-                # Display Results
                 st.success("Event Plan Generated Successfully!")
                 
                 t1, t2, t3, t4 = st.tabs(["💰 Budget", "⏱️ Day-of Timeline", "📋 Checklist", "💡 Creative Ideas"])
